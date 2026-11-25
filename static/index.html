@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Song Search</title>
+  <meta name="description" content="Find a song from a line of lyrics you remember — type it or sing it.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22 fill=%22%232E44C7%22%3E%3Crect x=%223%22 y=%2212%22 width=%223%22 height=%228%22 rx=%221.5%22/%3E%3Crect x=%229%22 y=%227%22 width=%223%22 height=%2218%22 rx=%221.5%22/%3E%3Crect x=%2215%22 y=%2210%22 width=%223%22 height=%2212%22 rx=%221.5%22/%3E%3Crect x=%2221%22 y=%224%22 width=%223%22 height=%2224%22 rx=%221.5%22/%3E%3Crect x=%2227%22 y=%2213%22 width=%223%22 height=%226%22 rx=%221.5%22/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#composer">Skip to search</a>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Smart Song Search home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="12" width="3" height="8" rx="1.5"/><rect x="9" y="7" width="3" height="18" rx="1.5"/><rect x="15" y="10" width="3" height="12" rx="1.5"/><rect x="21" y="4" width="3" height="24" rx="1.5"/><rect x="27" y="13" width="3" height="6" rx="1.5"/></svg>
+      <span>Smart Song Search</span>
+    </a>
+    <div class="status" aria-live="polite">
+      <span class="pill" id="pill-search"><i></i>Search index</span>
+      <span class="pill" id="pill-asr"><i></i>Voice model</span>
+    </div>
+    <a class="toplink" href="#evaluation">How well it works</a>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <h1 id="hero-title">Which song is that line from?</h1>
+      <p class="lede">Type the lyrics you remember, or sing them. We search <strong id="stat-songs">thousands of</strong> songs by meaning, not just exact words — so a half-remembered or misheard line still finds its song.</p>
+
+      <div class="composer" id="composer">
+        <div class="tabs" role="tablist" aria-label="How do you want to search?">
+          <button role="tab" aria-selected="true" aria-controls="panel-type" id="tab-type" data-mode="type">Type lyrics</button>
+          <button role="tab" aria-selected="false" aria-controls="panel-sing" id="tab-sing" data-mode="sing" tabindex="-1">Sing</button>
+          <button role="tab" aria-selected="false" aria-controls="panel-upload" id="tab-upload" data-mode="upload" tabindex="-1">Upload a recording</button>
+        </div>
+
+        <div class="panel" role="tabpanel" id="panel-type" aria-labelledby="tab-type">
+          <label class="sr-only" for="query">Lyrics you remember</label>
+          <textarea id="query" rows="2" maxlength="2000" spellcheck="false"
+            placeholder="cause baby you're a firework, come on show 'em what you're worth"></textarea>
+          <p class="hint">Press <kbd>Enter</kbd> to search. <kbd>Shift</kbd> + <kbd>Enter</kbd> starts a new line.</p>
+        </div>
+
+        <div class="panel" role="tabpanel" id="panel-sing" aria-labelledby="tab-sing" hidden>
+          <div class="recorder">
+            <button class="rec-btn" id="rec-btn" aria-pressed="false">
+              <span class="rec-dot" aria-hidden="true"></span><span id="rec-label">Start singing</span>
+            </button>
+            <div class="scope">
+              <canvas id="scope" height="72" aria-hidden="true"></canvas>
+              <div class="scope-meta"><span id="rec-time">0:00</span><span>up to 0:20</span></div>
+            </div>
+          </div>
+          <p class="hint" id="sing-hint">Sing one or two lines. Five to fifteen seconds works best. Your browser will ask to use the microphone.</p>
+        </div>
+
+        <div class="panel" role="tabpanel" id="panel-upload" aria-labelledby="tab-upload" hidden>
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm">
+            <span class="drop-title">Drop a recording here, or choose a file</span>
+            <span class="drop-sub" id="drop-sub">WAV, MP3, M4A, OGG or FLAC. The first 30 seconds are used.</span>
+          </label>
+        </div>
+
+        <div class="controls">
+          <fieldset class="methods">
+            <legend>Search with</legend>
+            <label><input type="radio" name="method" value="hybrid" checked><span>Hybrid</span></label>
+            <label><input type="radio" name="method" value="sbert"><span>SBERT</span></label>
+            <label><input type="radio" name="method" value="tfidf"><span>TF-IDF</span></label>
+            <label><input type="radio" name="method" value="bm25"><span>BM25</span></label>
+          </fieldset>
+          <label class="topk">Show
+            <select id="topk"><option>5</option><option selected>10</option><option>20</option></select>
+          </label>
+          <button class="go" id="go">Find the song</button>
+        </div>
+
+        <div class="examples" id="examples" aria-label="Example lyrics to try"></div>
+      </div>
+    </section>
+
+    <section class="heard" id="heard" hidden aria-live="polite">
+      <div class="heard-head">
+        <span>We heard</span>
+        <span class="heard-meta" id="heard-meta"></span>
+      </div>
+      <div class="heard-row">
+        <input id="heard-text" aria-label="Transcript — edit it and search again">
+        <button class="ghost" id="heard-again">Search this text</button>
+      </div>
+    </section>
+
+    <div class="notice" id="notice" role="alert" hidden></div>
+
+    <section class="results-wrap" id="results-wrap" hidden aria-labelledby="results-title">
+      <div class="results-col">
+        <div class="results-head">
+          <h2 id="results-title">Best matches</h2>
+          <span class="results-meta" id="results-meta"></span>
+        </div>
+        <ol class="results" id="results"></ol>
+      </div>
+      <aside class="sheet" id="sheet" aria-live="polite" aria-labelledby="sheet-title">
+        <div class="sheet-empty" id="sheet-empty">Choose a result to read its lyrics. Words from your search are marked.</div>
+        <div class="sheet-body" id="sheet-body" hidden>
+          <p class="sheet-artist" id="sheet-artist"></p>
+          <h3 id="sheet-title"></h3>
+          <p class="sheet-meta" id="sheet-meta"></p>
+          <div class="sheet-lyrics" id="sheet-lyrics"></div>
+          <p class="sheet-note" id="sheet-note"></p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="evaluation" id="evaluation" aria-labelledby="eval-title">
+      <h2 id="eval-title">How well it works</h2>
+      <p class="eval-lede">Both models start from pretrained checkpoints and were fine-tuned for this project. Scores are measured on songs the models never saw during training.</p>
+
+      <div class="pipeline" aria-label="Search pipeline">
+        <div class="stage"><b>Your voice</b><span>16 kHz recording</span></div>
+        <div class="stage"><b>Whisper</b><span id="pipe-asr">fine-tuned on sung lyrics</span></div>
+        <div class="stage"><b>Normalise</b><span>lowercase, punctuation, apostrophes</span></div>
+        <div class="stage"><b>SBERT + lexical</b><span id="pipe-hybrid">hybrid ranking</span></div>
+        <div class="stage"><b>Songs</b><span>one entry per song</span></div>
+      </div>
+
+      <div class="eval-grid">
+        <div class="eval-block">
+          <h3>Finding the song</h3>
+          <p class="eval-sub">Hit@1 is how often the right song comes first. MRR@10 rewards ranking it high.</p>
+          <div class="table-scroll"><table id="ret-table"><caption class="sr-only">Retrieval results on held-out songs</caption></table></div>
+        </div>
+        <div class="eval-block">
+          <h3>Understanding singing</h3>
+          <p class="eval-sub">Word error rate on held-out songs — lower is better.</p>
+          <div id="asr-block"><p class="muted">Train the Whisper notebook and add <code>whisper_song_asr.zip</code> to see these scores.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Smart Song Search, a CSA402 Natural Language Processing project by Group 6, Gyalpozhing College of Information Technology</span>
+  </footer>
+
+  <template id="result-tpl">
+    <li class="result">
+      <button class="result-btn">
+        <span class="rank"></span>
+        <span class="result-main">
+          <span class="result-title"></span>
+          <span class="result-artist"></span>
+          <span class="result-snippet"></span>
+        </span>
+        <span class="result-score"><span class="bar"><i></i></span><span class="num"></span></span>
+      </button>
+    </li>
+  </template>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
